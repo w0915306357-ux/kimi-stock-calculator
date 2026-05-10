@@ -1,84 +1,91 @@
 # Deploy to GitHub Pages
 
-Target URL: **https://w0915306357-ux.github.io/kimi-stock-calculator/**
+**App URL**: https://w0915306357-ux.github.io/kimi-stock-calculator/
 
 ---
 
-## Why the blank page happens (root cause)
+## Option A — Automatic deploy via GitHub Actions (recommended)
 
-The main `package.json` uses `catalog:` version aliases from a pnpm monorepo.
-Outside that workspace those aliases can't resolve, so `npm install` / `pnpm install`
-fails silently and no JavaScript gets built → blank page.
+Every push to `main` triggers a build and deploy automatically.
 
-**Fix**: the workflow automatically copies `package.gh-pages.json` (real version
-numbers, no aliases, no workspace deps) over `package.json` before installing.
+### Step 1 — Enable GitHub Pages (one time only)
 
----
+Go to your repo → **Settings** → **Pages** → **Source** → select **GitHub Actions** → Save.
 
-## One-time repo setup (do this once)
+### Step 2 — Set up the repo with the correct file structure
 
-1. Go to your GitHub repo → **Settings** → **Pages**
-2. Under **Source** select **GitHub Actions** → Save
-
----
-
-## File structure in your GitHub repo
+**Important**: the files in this ZIP must be at the ROOT of your repo, not inside a subfolder. When you extract the ZIP, use the contents directly:
 
 ```
-kimi-stock-calculator/        ← repo root
+your-repo-root/               ← git init here
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml        ← auto-deploy on push to main
+│       └── deploy.yml        ← GitHub Actions sees this
 ├── src/
-│   └── pages/Calculator.tsx
 ├── public/
-│   └── 404.html
+├── dist/                     ← pre-built version (see Option B)
 ├── index.html
-├── package.gh-pages.json     ← standalone deps (real versions, no catalog:)
-├── vite.gh-pages.config.ts   ← sets base: "/kimi-stock-calculator/"
-└── ...
+├── package.gh-pages.json
+├── vite.gh-pages.config.ts
+└── DEPLOY.md
 ```
 
-> `.github/workflows/deploy.yml` must be at the **repo root** (not in a subfolder).
-
----
-
-## How to deploy
+### Step 3 — Push
 
 ```bash
-# 1. Create and link your repo
 git init
 git remote add origin https://github.com/w0915306357-ux/kimi-stock-calculator.git
-
-# 2. Push — GitHub Actions handles everything else
 git add .
 git commit -m "Initial deploy"
 git push -u origin main
 ```
 
-Watch the **Actions** tab in GitHub — deployment takes ~2 minutes.
+GitHub Actions builds and deploys automatically. Check the **Actions** tab — takes ~2 min.
 
 ---
 
-## Local build test (optional, verify before pushing)
+## Option B — Manual deploy (instant, no build step)
+
+This ZIP already contains a pre-built `dist/` folder. You can deploy it directly to GitHub Pages without any build step.
+
+### Using the `gh-pages` npm tool
 
 ```bash
-cp package.gh-pages.json package.json
-npm install
-npm run build:gh-pages
-# Output is in ./dist/ — open dist/index.html to verify
+# Install once
+npm install -g gh-pages
+
+# Deploy the pre-built dist/ folder
+gh-pages -d dist
+```
+
+This pushes `dist/` to the `gh-pages` branch. Then in GitHub Pages settings, set source to **Deploy from branch → gh-pages → / (root)**.
+
+### Or push manually
+
+```bash
+# From your repo root
+git subtree push --prefix dist origin gh-pages
 ```
 
 ---
 
-## How it works
+## How the build works
 
 | File | Purpose |
 |---|---|
 | `vite.gh-pages.config.ts` | Sets `base: "/kimi-stock-calculator/"`, no Replit plugins |
-| `package.gh-pages.json` | Standalone deps with real semver versions (no `catalog:`) |
-| `.github/workflows/deploy.yml` | Swaps in the standalone package.json, builds with Node 22 + npm, deploys |
-| `public/404.html` | SPA fallback for direct URL access |
+| `package.gh-pages.json` | Real semver versions — no `catalog:` workspace aliases |
+| `.github/workflows/deploy.yml` | Copies `package.gh-pages.json` → `package.json`, runs `npm install` + `npm run build:gh-pages`, deploys `dist/` |
+| `public/404.html` | SPA 404 fallback |
+| `dist/` | Pre-built output (base path already baked in) |
+
+---
+
+## Why the blank page happens
+
+The most common cause: the `.github/` folder is inside a subfolder instead of at the repo root. GitHub Actions only scans `.github/workflows/` at the **repo root**. If the workflow is one level deeper, it is completely ignored and no build ever runs.
+
+Always extract this ZIP's contents directly into your repo root — do not push the whole extracted folder as a subdirectory.
 
 ---
 
@@ -86,7 +93,7 @@ npm run build:gh-pages
 
 | Problem | Fix |
 |---|---|
-| Blank page | Check Actions tab — look for build errors in the logs |
-| `catalog:` error | Confirm the workflow copied `package.gh-pages.json` → `package.json` |
-| Assets 404 | Confirm `base` in `vite.gh-pages.config.ts` exactly matches your repo name |
-| Workflow not running | Confirm Pages source is set to **GitHub Actions** in repo settings |
+| Blank page, no Actions runs | `.github/workflows/deploy.yml` is not at repo root |
+| Actions fails on `catalog:` | Confirm the `cp package.gh-pages.json package.json` step ran |
+| Blank page, Actions succeeded | Check `dist/index.html` has `src="/kimi-stock-calculator/assets/..."` |
+| Assets 404 | Confirm `base` in `vite.gh-pages.config.ts` matches your repo name exactly |
