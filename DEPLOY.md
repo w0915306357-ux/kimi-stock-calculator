@@ -4,77 +4,69 @@ Target URL: **https://w0915306357-ux.github.io/kimi-stock-calculator/**
 
 ---
 
-## One-time Setup (GitHub repo settings)
+## Why the blank page happens (root cause)
 
-1. Go to your GitHub repo → **Settings** → **Pages**
-2. Under **Source**, select **GitHub Actions**
-3. Save — no branch selection needed
+The main `package.json` uses `catalog:` version aliases from a pnpm monorepo.
+Outside that workspace those aliases can't resolve, so `npm install` / `pnpm install`
+fails silently and no JavaScript gets built → blank page.
+
+**Fix**: the workflow automatically copies `package.gh-pages.json` (real version
+numbers, no aliases, no workspace deps) over `package.json` before installing.
 
 ---
 
-## Step-by-step: First deployment
+## One-time repo setup (do this once)
 
-### 1. Create your GitHub repo
+1. Go to your GitHub repo → **Settings** → **Pages**
+2. Under **Source** select **GitHub Actions** → Save
 
-```bash
-git init
-git remote add origin https://github.com/w0915306357-ux/kimi-stock-calculator.git
-```
+---
 
-### 2. Copy files into the repo root
-
-Extract the ZIP — the structure should be:
+## File structure in your GitHub repo
 
 ```
-kimi-stock-calculator/          ← your GitHub repo root
+kimi-stock-calculator/        ← repo root
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml          ← GitHub Actions workflow
+│       └── deploy.yml        ← auto-deploy on push to main
 ├── src/
-│   └── pages/
-│       └── Calculator.tsx
+│   └── pages/Calculator.tsx
 ├── public/
 │   └── 404.html
 ├── index.html
-├── package.json
-├── vite.gh-pages.config.ts     ← GitHub Pages build config
+├── package.gh-pages.json     ← standalone deps (real versions, no catalog:)
+├── vite.gh-pages.config.ts   ← sets base: "/kimi-stock-calculator/"
 └── ...
 ```
 
-> The `.github/workflows/deploy.yml` file must be at the **repo root**, not inside a subfolder.
-
-### 3. Remove pnpm catalog references (standalone repo only)
-
-Since this repo won't have a pnpm workspace, replace `catalog:` versions in `package.json` with explicit versions:
-
-Run this to auto-resolve them:
-```bash
-npx npm-check-updates -u
-pnpm install
-```
-
-Or manually pin each `"catalog:"` entry to a version (e.g. `"vite": "^7.0.0"`).
-
-### 4. Push to GitHub
-
-```bash
-git add .
-git commit -m "Initial commit"
-git push -u origin main
-```
-
-### 5. Watch the deployment
-
-Go to **Actions** tab in your GitHub repo. The workflow runs automatically on every push to `main`. Deployment takes about 1–2 minutes.
+> `.github/workflows/deploy.yml` must be at the **repo root** (not in a subfolder).
 
 ---
 
-## Local build test (before pushing)
+## How to deploy
 
 ```bash
-pnpm install
-pnpm build:gh-pages
-# Output is in ./dist/
+# 1. Create and link your repo
+git init
+git remote add origin https://github.com/w0915306357-ux/kimi-stock-calculator.git
+
+# 2. Push — GitHub Actions handles everything else
+git add .
+git commit -m "Initial deploy"
+git push -u origin main
+```
+
+Watch the **Actions** tab in GitHub — deployment takes ~2 minutes.
+
+---
+
+## Local build test (optional, verify before pushing)
+
+```bash
+cp package.gh-pages.json package.json
+npm install
+npm run build:gh-pages
+# Output is in ./dist/ — open dist/index.html to verify
 ```
 
 ---
@@ -84,8 +76,9 @@ pnpm build:gh-pages
 | File | Purpose |
 |---|---|
 | `vite.gh-pages.config.ts` | Sets `base: "/kimi-stock-calculator/"`, no Replit plugins |
-| `.github/workflows/deploy.yml` | CI/CD: installs, builds, deploys to GitHub Pages on every push |
-| `public/404.html` | SPA fallback — redirects 404s back to the app |
+| `package.gh-pages.json` | Standalone deps with real semver versions (no `catalog:`) |
+| `.github/workflows/deploy.yml` | Swaps in the standalone package.json, builds with Node 22 + npm, deploys |
+| `public/404.html` | SPA fallback for direct URL access |
 
 ---
 
@@ -93,6 +86,7 @@ pnpm build:gh-pages
 
 | Problem | Fix |
 |---|---|
-| Blank page after deploy | Check that `base` in `vite.gh-pages.config.ts` matches your repo name exactly |
-| Build fails on `catalog:` | Replace `"catalog:"` with real version numbers in `package.json` |
-| Workflow not triggering | Confirm Pages source is set to **GitHub Actions** in repo settings |
+| Blank page | Check Actions tab — look for build errors in the logs |
+| `catalog:` error | Confirm the workflow copied `package.gh-pages.json` → `package.json` |
+| Assets 404 | Confirm `base` in `vite.gh-pages.config.ts` exactly matches your repo name |
+| Workflow not running | Confirm Pages source is set to **GitHub Actions** in repo settings |
